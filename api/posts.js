@@ -1,35 +1,55 @@
 /* global Buffer */
-import { list, put } from '@vercel/blob'
+import { get, put } from '@vercel/blob'
 
 const DB_PATH = 'board/posts.json'
 const MAX_POSTS = 500
 
+// 스토어가 public/private 어느 쪽으로 만들어졌는지 모르므로 성공하는 쪽을 찾아 기억한다.
+let knownAccess = null
+
+const withAccess = async (fn) => {
+  const order = knownAccess ? [knownAccess] : ['private', 'public']
+  let lastError
+  for (const access of order) {
+    try {
+      const result = await fn(access)
+      knownAccess = access
+      return result
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError
+}
+
 const readPosts = async () => {
-  const { blobs } = await list({ prefix: DB_PATH })
-  const blob = blobs.find((b) => b.pathname === DB_PATH)
-  if (!blob) return []
-  const res = await fetch(`${blob.url}?t=${Date.now()}`, { cache: 'no-store' })
-  return res.ok ? res.json() : []
+  const result = await withAccess((access) => get(DB_PATH, { access, useCache: false }))
+  if (!result || result.statusCode !== 200) return []
+  return JSON.parse(await new Response(result.stream).text())
 }
 
 const writePosts = (posts) =>
-  put(DB_PATH, JSON.stringify(posts), {
-    access: 'public',
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: 'application/json',
-    cacheControlMaxAge: 0,
-  })
+  withAccess((access) =>
+    put(DB_PATH, JSON.stringify(posts), {
+      access,
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: 'application/json',
+      cacheControlMaxAge: 0,
+    }),
+  )
 
 const uploadImage = async (dataUrl, index) => {
   const match = /^data:(image\/[a-z+]+);base64,(.+)$/i.exec(dataUrl || '')
   if (!match) return null
   const ext = match[1].split('/')[1].replace('jpeg', 'jpg')
-  const blob = await put(`board/img-${Date.now()}-${index}.${ext}`, Buffer.from(match[2], 'base64'), {
-    access: 'public',
-    contentType: match[1],
-  })
-  return blob.url
+  const blob = await withAccess((access) =>
+    put(`board/img-${Date.now()}-${index}.${ext}`, Buffer.from(match[2], 'base64'), {
+      access,
+      contentType: match[1],
+    }),
+  )
+  return `/api/image?p=${encodeURIComponent(blob.pathname)}`
 }
 
 export default async function handler(req, res) {
@@ -62,6 +82,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'method not allowed' })
   } catch (error) {
     console.error(error)
-    return res.status(500).json({ error: 'server error' })
+    return res.status(500).json({ error: 'server error', detail: String(error?.message || error).slice(0, 300) })
   }
 }

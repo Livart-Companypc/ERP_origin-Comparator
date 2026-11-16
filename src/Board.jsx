@@ -35,8 +35,9 @@ const api = async (method, path = '', body) => {
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   })
-  if (!res.ok) throw new Error(String(res.status))
-  return res.json()
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.detail ? `${res.status}: ${data.detail}${data.hasToken === false ? ' (BLOB_READ_WRITE_TOKEN 없음)' : ''}` : String(res.status))
+  return data
 }
 
 function Board() {
@@ -50,7 +51,7 @@ function Board() {
   useEffect(() => {
     api('GET')
       .then(setPosts)
-      .catch(() => setError('글을 불러오지 못했습니다. 서버 연결을 확인해 주세요.'))
+      .catch((e) => setError(`글을 불러오지 못했습니다. (${e.message})`))
       .finally(() => setLoading(false))
   }, [])
 
@@ -70,8 +71,8 @@ function Board() {
       setError('')
       setText('')
       setImages([])
-    } catch {
-      setError('등록에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+    } catch (e) {
+      setError(`등록에 실패했습니다. (${e.message})`)
     } finally {
       setSubmitting(false)
     }
