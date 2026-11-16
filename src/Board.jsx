@@ -1,16 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-const STORAGE_KEY = 'erp-pcode-board-v1'
-const MAX_IMAGE_SIDE = 1200
-
-const loadPosts = () => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
+const MAX_IMAGE_SIDE = 1000
 
 const formatDateTime = (iso) => {
   const d = new Date(iso)
@@ -32,27 +22,37 @@ const fileToDataUrl = (file) =>
         canvas.width = Math.round(img.width * scale)
         canvas.height = Math.round(img.height * scale)
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
-        resolve(canvas.toDataURL('image/jpeg', 0.8))
+        resolve(canvas.toDataURL('image/jpeg', 0.75))
       }
       img.src = reader.result
     }
     reader.readAsDataURL(file)
   })
 
-const persist = (posts) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(posts))
-    return true
-  } catch {
-    return false
-  }
+const api = async (method, path = '', body) => {
+  const res = await fetch(`/api/posts${path}`, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) throw new Error(String(res.status))
+  return res.json()
 }
 
 function Board() {
-  const [posts, setPosts] = useState(loadPosts)
+  const [posts, setPosts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [text, setText] = useState('')
   const [images, setImages] = useState([])
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    api('GET')
+      .then(setPosts)
+      .catch(() => setError('글을 불러오지 못했습니다. 서버 연결을 확인해 주세요.'))
+      .finally(() => setLoading(false))
+  }, [])
 
   const handleImages = async (event) => {
     const files = [...event.target.files].filter((f) => f.type.startsWith('image/'))
@@ -61,25 +61,29 @@ function Board() {
     setImages((prev) => [...prev, ...urls.filter(Boolean)].slice(0, 4))
   }
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault()
-    if (!text.trim() && images.length === 0) return
-    const next = [{ id: Date.now(), text: text.trim(), images, createdAt: new Date().toISOString() }, ...posts]
-    if (!persist(next)) {
-      setError('저장 공간이 부족합니다. 이미지를 줄이거나 오래된 글을 삭제해 주세요.')
-      return
+    if (submitting || (!text.trim() && images.length === 0)) return
+    setSubmitting(true)
+    try {
+      setPosts(await api('POST', '', { text, images }))
+      setError('')
+      setText('')
+      setImages([])
+    } catch {
+      setError('등록에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+    } finally {
+      setSubmitting(false)
     }
-    setError('')
-    setPosts(next)
-    setText('')
-    setImages([])
   }
 
-  const remove = (id) => {
+  const remove = async (id) => {
     if (!window.confirm('이 글을 삭제할까요?')) return
-    const next = posts.filter((p) => p.id !== id)
-    persist(next)
-    setPosts(next)
+    try {
+      setPosts(await api('DELETE', `?id=${encodeURIComponent(id)}`))
+    } catch {
+      setError('삭제에 실패했습니다.')
+    }
   }
 
   return (
@@ -111,13 +115,14 @@ function Board() {
             이미지 첨부
             <input type="file" accept="image/*" multiple hidden onChange={handleImages} />
           </label>
-          <button type="submit" className="primary-btn" disabled={!text.trim() && images.length === 0}>등록</button>
+          <button type="submit" className="primary-btn" disabled={submitting || (!text.trim() && images.length === 0)}>{submitting ? '등록 중…' : '등록'}</button>
         </div>
         {error && <p className="board-error">{error}</p>}
       </form>
 
       <ul className="board-list">
-        {posts.length === 0 && <li className="board-empty">아직 등록된 글이 없습니다.</li>}
+        {loading && <li className="board-empty">불러오는 중…</li>}
+        {!loading && posts.length === 0 && <li className="board-empty">아직 등록된 글이 없습니다.</li>}
         {posts.map((post) => (
           <li key={post.id} className="board-item">
             <div className="board-meta">
