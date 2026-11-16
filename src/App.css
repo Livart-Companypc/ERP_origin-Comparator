@@ -111,11 +111,13 @@
 .panel-heading h1,
 .results-header h2 {
   margin: 0;
-  font-size: clamp(1.6rem, 2.2vw, 2.6rem);
+  font-size: clamp(1.6rem, 2.1vw, 2.6rem);
   letter-spacing: -0.05em;
   color: #12364a;
 }
-
+.results-header h2{
+  font-size: clamp(1.6rem, 1.5vw, 2.6rem);
+}
 .primary-btn {
   border: none;
   border-radius: 14px;

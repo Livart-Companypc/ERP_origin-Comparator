@@ -580,8 +580,8 @@ function App() {
         <section className="upload-panel panel">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">ERP 원산지 검증</p>
-              <h1>상품기술서 / ERP 원산지 비교</h1>
+              <p className="eyebrow">제품 원산지 검증</p>
+              <h1>[ERP - 상품기술서] 원산지 비교</h1>
             </div>
             <button
               type="button"
