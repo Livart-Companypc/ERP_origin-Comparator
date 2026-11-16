@@ -591,7 +591,12 @@ function App() {
             >
               {isCustomUpload ? '분석하기' : '다시 분석 돌리기'}
             </button>
-          </div>
+          </div> 
+          <ul className="notice-list">
+            <li>원하는 파일로 재업로드하는 경우, 각 컬럼 구성과 명칭은 기존 파일과 동일해야 합니다</li>
+            <li>결과표에서 원하는 행을 직접 선택하여 엑셀 파일로 추출 가능합니다</li>
+            <li>관련 건의사항이나 공유사항은 상단의 [히스토리 기록] 탭에 남겨주세요 (익명)</li>
+          </ul>
 
           <div className="upload-grid">
             <div className="upload-card">
@@ -614,6 +619,8 @@ function App() {
               </button>
             </div>
           </div>
+
+         
         </section>
 
         <section className="summary-grid">
@@ -639,7 +646,25 @@ function App() {
           <div className="results-header">
             <div>
               <p className="eyebrow">검증 결과</p>
-              <h2>이슈 목록</h2>
+              <div className="title-with-help">
+                <h2>이슈 목록</h2>
+                <span className="help-tip" tabIndex={0} aria-label="수정 필요 유형 안내">
+                  <span className="help-icon">?</span>
+                  <div className="help-tooltip" role="tooltip">
+                    <strong>수정이 필요한 경우는 총 4가지입니다.</strong>
+                    <dl>
+                      <dt>ERP 원산지 누락</dt>
+                      <dd>ERP 파일에 원산지가 없어 ERP 등록이 필요합니다.</dd>
+                      <dt>상품기술서 원산지 누락</dt>
+                      <dd>상품기술서에 원산지가 없어 기재가 필요합니다.</dd>
+                      <dt>원산지 불일치</dt>
+                      <dd>두 파일의 원산지가 서로 달라 확인 후 수정이 필요합니다.</dd>
+                      <dt>상품기술서 추가 필요</dt>
+                      <dd>ERP에 원산지가 여러 개 등록되어 있어 상품기술서에 추가가 필요합니다.</dd>
+                    </dl>
+                  </div>
+                </span>
+              </div>
             </div>
           </div>
 

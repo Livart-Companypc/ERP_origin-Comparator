@@ -146,7 +146,7 @@
 .reupload-btn {
   background: linear-gradient(135deg, #0f6b87 0%, #005163 100%);
   border: 1px solid rgba(255, 255, 255, 0.25);
-  padding: 14px 22px;
+  padding: 14px 30px;
   letter-spacing: 0.02em;
 }
 
@@ -212,6 +212,7 @@
   border-radius: 12px;
   background: rgba(16, 96, 122, 0.08);
   color: #0d5977;
+  border: 1px dashed;
   font-weight: 700;
   padding: 10px 12px;
   text-align: center;
@@ -267,6 +268,101 @@
 
 .results-header {
   padding: 6px 8px 18px;
+}
+
+.notice-list {
+  margin: 18px 0 0;
+  padding: 14px 18px 14px 34px;
+  background: #f3f8fa;
+  border-radius: 12px;
+  font-size: 0.86rem;
+  line-height: 1.7;
+  color: #3a5565;
+}
+
+.title-with-help {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.help-tip {
+  position: relative;
+  display: inline-flex;
+  outline: none;
+}
+
+.help-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #c20000;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+}
+
+.help-tooltip {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 12px);
+  transform: translateY(-50%);
+  width: 340px;
+  padding: 16px 18px;
+  background: #1f2026;
+  color: #fff;
+  border-radius: 14px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-transform: none;
+  z-index: 20;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25);
+}
+
+.help-tooltip::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -6px;
+  margin-top: -6px;
+  border: 6px solid transparent;
+  border-left: 0;
+  border-right-color: #1f2026;
+}
+
+.help-tooltip strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 0.88rem;
+}
+
+.help-tooltip dl {
+  margin: 0;
+}
+
+.help-tooltip dt {
+  margin-top: 8px;
+  font-weight: 700;
+  color: #ffb27f;
+}
+
+.help-tooltip dd {
+  margin: 2px 0 0;
+  color: #e4e6ea;
+}
+
+.help-tip:hover .help-tooltip,
+.help-tip:focus .help-tooltip {
+  opacity: 1;
+  visibility: visible;
 }
 
 .results-toolbar {
