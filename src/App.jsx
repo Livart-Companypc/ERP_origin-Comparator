@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
+import Board from './Board.jsx'
 import './App.css'
 
 const TOP_LEVEL_FILTERS = [
@@ -273,16 +274,16 @@ const buildGroupedResults = (results) => {
     const groupStatus = getGroupStatus(children)
     const groupMessage =
       groupStatus === 'matched'
-        ? '모든 하위 옵션이 일치.'
+        ? '모든 하위 옵션이 일치'
         : groupStatus === 'mismatch'
-          ? '하위 옵션 중 일부 불일치 존재.'
+          ? '하위 옵션 중 일부 불일치 존재'
           : groupStatus === 'missing_origin'
             ? '하위 옵션 중 ERP 쪽 원산지 누락'
             : groupStatus === 'empty_product'
               ? '하위 옵션 중 기술서 쪽 원산지 누락'
               : groupStatus === 'multiple_origin'
                 ? '하위 옵션 중 ERP 원산지가 여러 개 있음'
-                : '하위 옵션 중 일부 비교가 불가능합니다.'
+                : '하위 옵션 중 일부 비교가 불가능'
 
     const erpCodes = [...new Set(children.map((item) => normalizeText(item.ERP코드)).filter(Boolean))]
     const expectedOrigins = [...new Set(children.flatMap((item) => item.originValues || []).filter(Boolean))]
@@ -308,6 +309,7 @@ function App() {
   const [activeFilter, setActiveFilter] = useState('all')
   const [activeDetailFilter, setActiveDetailFilter] = useState('attention_all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [page, setPage] = useState('check')
   const [isCustomUpload, setIsCustomUpload] = useState(false)
   const [expandedGroups, setExpandedGroups] = useState({})
   const [selectedGroupIds, setSelectedGroupIds] = useState(new Set())
@@ -562,9 +564,19 @@ function App() {
         <div className="brand" aria-label="LIVART logo">
           <img src="/images/livart_logo.svg" alt="LIVART logo" className="brand-logo" />
         </div>
+        <nav className="top-nav" aria-label="메뉴">
+          <button type="button" className={page === 'check' ? 'nav-tab active' : 'nav-tab'} onClick={() => setPage('check')}>원산지 검증</button>
+          <button type="button" className={page === 'board' ? 'nav-tab active' : 'nav-tab'} onClick={() => setPage('board')}>히스토리 기록</button>
+        </nav>
       </header>
 
-      <main className="page-content">
+      {page === 'board' && (
+        <main className="page-content">
+          <Board />
+        </main>
+      )}
+
+      <main className="page-content" hidden={page !== 'check'}>
         <section className="upload-panel panel">
           <div className="panel-heading">
             <div>
@@ -694,6 +706,9 @@ function App() {
                 onClick={exportVisibleResults}
                 disabled={hasUserSelection && selectedVisibleGroupIds.length === 0}
               >
+                <svg className="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5M4 20h16" />
+                </svg>
                 {exportLabel}
               </button>
               <button
