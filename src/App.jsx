@@ -372,7 +372,20 @@ function App() {
   // 한 번 조회한 결과는 브라우저(localStorage)에 저장 → 새로고침해도 재조회 안 함. force=true(다시 분석)일 때만 전체 재조회
   const loadWebOrigins = async (productRows, force = false) => {
     const codes = [...new Set(productRows.filter((row) => row.하위P코드).map(getProductCode).filter((c) => getProductUrl(c)))]
-    const cached = force ? { data: {} } : readOriginCache()
+    let cached = { data: {} }
+    if (!force) {
+      // 배포에 포함된 사전 조회 파일을 기본으로 쓰고, 브라우저 저장본이 더 최신이면 그걸 사용
+      let base = { data: {} }
+      try {
+        const res = await fetch('/defaults/web-origins.json')
+        const json = res.ok ? await res.json() : null
+        if (json && json.data) base = json
+      } catch {
+        // 파일이 없으면 라이브 조회로 대체
+      }
+      const local = readOriginCache()
+      cached = (local.savedAt || 0) > (base.savedAt || 0) ? { ...local, data: { ...base.data, ...local.data } } : { ...base, data: { ...local.data, ...base.data } }
+    }
     const missing = codes.filter((c) => !cached.data[c])
     let data = cached.data
     let savedAt = cached.savedAt
