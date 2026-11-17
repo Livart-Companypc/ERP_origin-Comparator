@@ -105,24 +105,60 @@ const scanCountries = (text) => {
   return found.sort((x, y) => x.index - y.index)
 }
 
-// 기술서에서 원산지 추출: 1) "원산지" 표기 근처 국가 2) 그 외 본문 국가(뒤쪽 우선)
-const findOriginInDescription = (description = '') => {
-  const text = normalizeText(description)
-  if (!text) return { origins: [], labeled: false }
+const PRODUCT_URL = 'https://living.hyundailivart.co.kr/p/'
+const getProductCode = (row) => row.대표P코드 || row.하위P코드
+const getProductUrl = (code) => (code && /^P\d+$/i.test(code) ? `${PRODUCT_URL}${code}` : '')
 
-  const labeled = []
-  const labelRegex = /(원산지|제조국|생산국|Made in)\s*[:：]?\s*/gi
-  let m
-  while ((m = labelRegex.exec(text)) !== null) {
-    const segment = text.slice(m.index + m[0].length, m.index + m[0].length + 25)
-    const first = scanCountries(segment)[0]
-    if (first) labeled.push(first.country)
+// 상품 페이지에서 읽어온 원산지 블록 텍스트 → 국가 목록. 블록이 없으면 빈 배열(= 기술서 누락)
+const originsFromWeb = (entry) => {
+  if (!entry || !entry.ok) return []
+  const found = entry.origins.flatMap((text) => scanCountries(text).map((x) => x.country))
+  return [...new Set(found)]
+}
+
+// P코드 목록을 /api/origin 으로 조회 (10개씩 묶어서 4건 병렬)
+const ORIGIN_CACHE_KEY = 'erp-web-origins-v1'
+const readOriginCache = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ORIGIN_CACHE_KEY) || 'null')
+    if (parsed && parsed.data) return parsed
+  } catch {
+    // 저장소 사용 불가 시 캐시 없이 동작
   }
-  if (labeled.length > 0) return { origins: [...new Set(labeled)], labeled: true }
+  return { data: {} }
+}
+const writeOriginCache = (value) => {
+  try {
+    localStorage.setItem(ORIGIN_CACHE_KEY, JSON.stringify(value))
+  } catch {
+    // 용량 초과/차단 시 무시
+  }
+}
 
-  const all = scanCountries(text)
-  const ordered = [...all].reverse().map((x) => x.country)
-  return { origins: [...new Set(ordered)], labeled: false }
+const fetchWebOrigins = async (codes, onProgress) => {
+  const map = {}
+  const chunks = []
+  for (let i = 0; i < codes.length; i += 10) chunks.push(codes.slice(i, i + 10))
+  let done = 0
+  let next = 0
+  const worker = async () => {
+    while (next < chunks.length) {
+      const chunk = chunks[next++]
+      try {
+        const res = await fetch(`/api/origin?codes=${chunk.join(',')}`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        Object.assign(map, await res.json())
+      } catch (e) {
+        chunk.forEach((code) => {
+          map[code] = { code, ok: false, error: String(e?.message || e), origins: [] }
+        })
+      }
+      done += chunk.length
+      onProgress?.(done, codes.length)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(4, chunks.length) }, worker))
+  return map
 }
 
 const toWorkbookRows = (fileBuffer) => {
@@ -152,7 +188,7 @@ const parseProducts = (rows) =>
     상품기술서내용: normalizeText(row.상품기술서내용),
   }))
 
-const compareFiles = (productRows, originRows) => {
+const compareFiles = (productRows, originRows, webOrigins = {}) => {
   const originMap = new Map()
 
   originRows.forEach((row) => {
@@ -175,10 +211,11 @@ const compareFiles = (productRows, originRows) => {
 
       const techOriginRaw = normalizeCountry(row.ERP원산지)
       const techOriginField = isKnownCountry(techOriginRaw) ? techOriginRaw : ''
-      const { origins: descOrigins } = findOriginInDescription(row.상품기술서내용)
+      const webEntry = webOrigins[getProductCode(row)]
+      const descOrigins = originsFromWeb(webEntry)
       // ERP 원산지 키워드가 기술서에 있으면 우선 노출
       const matchedErp = uniqueOriginValues.filter((v) => descOrigins.includes(v))
-      const productOriginList = matchedErp.length > 0 ? matchedErp : descOrigins.length > 0 ? [descOrigins[0]] : techOriginField ? [techOriginField] : []
+      const productOriginList = matchedErp.length > 0 ? matchedErp : descOrigins
       const productOrigin = productOriginList.join(', ')
       const detailedOrigin = productOrigin
 
@@ -196,7 +233,7 @@ const compareFiles = (productRows, originRows) => {
         message = `ERP 원산지 여러개: ${uniqueOriginValues.join(', ')}`
       } else if (!productOrigin) {
         status = 'empty_product'
-        message = '상품기술서 쪽 원산지 누락'
+        message = webEntry && !webEntry.ok ? `상품 페이지 조회 실패 (${webEntry.error})` : '상품기술서 쪽 원산지 누락'
       } else if (matchedErp.length === 0 && !productOriginList.includes(expectedOrigin)) {
         status = 'mismatch'
         message = '기술서 원산지와 ERP 원산지가 서로 불일치'
@@ -310,6 +347,10 @@ function App() {
   const [activeDetailFilter, setActiveDetailFilter] = useState('attention_all')
   const [searchTerm, setSearchTerm] = useState('')
   const [page, setPage] = useState('check')
+  const [progress, setProgress] = useState(null)
+  const [originSavedAt, setOriginSavedAt] = useState(null)
+  const [initializing, setInitializing] = useState(true)
+  const isLoading = initializing || !!progress
   const [isCustomUpload, setIsCustomUpload] = useState(false)
   const [expandedGroups, setExpandedGroups] = useState({})
   const [selectedGroupIds, setSelectedGroupIds] = useState(new Set())
@@ -324,6 +365,27 @@ function App() {
     }
 
     originInputRef.current?.click()
+  }
+
+  // 한 번 조회한 결과는 브라우저(localStorage)에 저장 → 새로고침해도 재조회 안 함. force=true(다시 분석)일 때만 전체 재조회
+  const loadWebOrigins = async (productRows, force = false) => {
+    const codes = [...new Set(productRows.filter((row) => row.하위P코드).map(getProductCode).filter((c) => getProductUrl(c)))]
+    const cached = force ? { data: {} } : readOriginCache()
+    const missing = codes.filter((c) => !cached.data[c])
+    let data = cached.data
+    let savedAt = cached.savedAt
+    if (missing.length > 0) {
+      setProgress({ done: 0, total: missing.length })
+      const fetched = await fetchWebOrigins(missing, (done, total) => setProgress({ done, total }))
+      // 조회 실패한 건 저장하지 않아 다음에 다시 시도
+      const okOnly = Object.fromEntries(Object.entries(fetched).filter(([, v]) => v.ok))
+      data = { ...data, ...okOnly }
+      savedAt = Date.now()
+      writeOriginCache({ savedAt, data })
+      data = { ...data, ...fetched }
+    }
+    setOriginSavedAt(savedAt || null)
+    return data
   }
 
   const loadDefaultFiles = async () => {
@@ -353,9 +415,13 @@ function App() {
 
       const productRows = parseProducts(toWorkbookRows(productBuffer))
       const originRows = toWorkbookRows(originBuffer)
-      const { results: nextResults } = compareFiles(productRows, originRows)
+      const webOrigins = await loadWebOrigins(productRows)
+      if (!active) return
+      const { results: nextResults } = compareFiles(productRows, originRows, webOrigins)
 
       setResults(nextResults)
+      setProgress(null)
+      setInitializing(false)
     }
 
     init()
@@ -391,9 +457,11 @@ function App() {
 
     const productRows = parseProducts(toWorkbookRows(productBuffer))
     const originRows = toWorkbookRows(originBuffer)
-    const { results: nextResults } = compareFiles(productRows, originRows)
+    const webOrigins = await loadWebOrigins(productRows, true)
+    const { results: nextResults } = compareFiles(productRows, originRows, webOrigins)
 
     setResults(nextResults)
+    setProgress(null)
     setActiveFilter('all')
   }
 
@@ -587,13 +655,14 @@ function App() {
               type="button"
               className="primary-btn reupload-btn"
               onClick={runAnalysis}
-              disabled={!productFile || !originFile}
+              disabled={!productFile || !originFile || !!progress}
             >
-              {isCustomUpload ? '분석하기' : '다시 분석 돌리기'}
+              {progress ? `상품 페이지 조회 중 ${progress.done}/${progress.total}` : isCustomUpload ? '분석하기' : '다시 분석 돌리기'}
             </button>
           </div> 
           <ul className="notice-list">
             <li>원하는 파일로 재업로드하는 경우, 각 컬럼 구성과 명칭은 기존 파일과 동일해야 합니다</li>
+            <li>상품기술서 원산지는 엑셀이 아닌 리바트몰 상품 페이지(대표P코드 링크)의 원산지 표기를 읽어 비교합니다 (한 번 조회한 결과는 이 브라우저에 저장되며, [다시 분석] 시에만 재조회합니다{originSavedAt ? ` · 마지막 조회: ${new Date(originSavedAt).toLocaleString('ko-KR')}` : ''})</li>
             <li>결과표에서 원하는 행을 직접 선택하여 엑셀 파일로 추출 가능합니다</li>
             <li>관련 건의사항이나 공유사항은 상단의 [히스토리 기록] 탭에 남겨주세요 (익명)</li>
           </ul>
@@ -761,7 +830,19 @@ function App() {
                 </tr>
               </thead>
               <tbody>
-                {filteredGroups.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan="7" className="empty-state">
+                      <div className="loading-state">
+<span className="spinner" aria-hidden="true" />
+                      <strong>분석 중입니다…</strong>
+                      <span className="loading-sub">
+                        {progress ? `상품 페이지 원산지 조회 ${progress.done}/${progress.total}` : '파일을 불러오는 중'}
+                      </span>
+</div>
+                    </td>
+                  </tr>
+                ) : filteredGroups.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="empty-state">
                       조건에 맞는 결과가 없습니다.
@@ -783,7 +864,13 @@ function App() {
                         </td>
                         <td>
                           <div className="group-code-wrap">
-                            <span>{group.대표P코드 || '-'}</span>
+                            {getProductUrl(group.대표P코드) ? (
+                              <a href={getProductUrl(group.대표P코드)} target="_blank" rel="noreferrer">
+                                {group.대표P코드}
+                              </a>
+                            ) : (
+                              <span>{group.대표P코드 || '-'}</span>
+                            )}
                             {group.children.length > 1 && (
                               <button type="button" className="toggle-btn" onClick={() => toggleGroup(group.id)}>
                                 {expandedGroups[group.id] ? '닫기' : `하위 옵션 보기 (${group.children.length})`}
