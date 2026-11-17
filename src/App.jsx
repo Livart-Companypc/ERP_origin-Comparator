@@ -308,10 +308,16 @@ const buildGroupedResults = (results) => {
 
   return [...groups.values()].map((group) => {
     const children = group.children
-    const groupStatus = getGroupStatus(children)
+    const erpCodes = [...new Set(children.map((item) => normalizeText(item.ERP코드)).filter(Boolean))]
+    const expectedOrigins = [...new Set(children.flatMap((item) => item.originValues || []).filter(Boolean))]
+    const productOrigins = [...new Set(children.flatMap((item) => (item.productOrigin || '').split(',').map((v) => v.trim())).filter((value) => value && value !== '없음'))]
+
+    // 대표P코드 기준: (하위 옵션 전체 ERP 원산지 모음) == (기술서 원산지)면, 일부 하위 옵션에 ERP 원산지가 비어 있어도 일치로 본다
+    const sameSet = expectedOrigins.length > 0 && expectedOrigins.length === productOrigins.length && expectedOrigins.every((v) => productOrigins.includes(v))
+    const groupStatus = sameSet ? 'matched' : getGroupStatus(children)
     const groupMessage =
       groupStatus === 'matched'
-        ? '모든 하위 옵션이 일치'
+        ? sameSet && children.some((c) => c.status !== 'matched') ? '대표 기준 ERP 원산지와 기술서 원산지 일치 (일부 하위 옵션은 개별 확인)' : '모든 하위 옵션이 일치'
         : groupStatus === 'mismatch'
           ? '하위 옵션 중 일부 불일치 존재'
           : groupStatus === 'missing_origin'
@@ -321,10 +327,6 @@ const buildGroupedResults = (results) => {
               : groupStatus === 'multiple_origin'
                 ? '하위 옵션 중 ERP 원산지가 여러 개 있음'
                 : '하위 옵션 중 일부 비교가 불가능'
-
-    const erpCodes = [...new Set(children.map((item) => normalizeText(item.ERP코드)).filter(Boolean))]
-    const expectedOrigins = [...new Set(children.flatMap((item) => item.originValues || []).filter(Boolean))]
-    const productOrigins = [...new Set(children.map((item) => normalizeText(item.productOrigin)).filter((value) => value && value !== '없음'))]
 
     return {
       ...group,
