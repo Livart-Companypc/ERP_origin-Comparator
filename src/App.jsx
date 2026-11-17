@@ -8,11 +8,11 @@ const TOP_LEVEL_FILTERS = [
   { key: 'matched', label: '일치' },
   {
     key: 'needs_attention',
-    label: '수정 필요',
+    label: '확인 필요',
     children: [
       { key: 'attention_all', label: '전체' },
       { key: 'missing_origin', label: 'ERP 쪽 원산지 누락' },
-      { key: 'empty_product', label: '기술서 쪽 원산지 누락' },
+      { key: 'empty_product', label: '기술서 쪽 원산지 누락 [디자이너 확인 필요]' },
       { key: 'mismatch', label: '아예 다름' },
       { key: 'multiple_origin', label: '원산지 여러개로 처리 필요' },
     ],
@@ -190,10 +190,20 @@ const parseProducts = (rows) =>
 
 const compareFiles = (productRows, originRows, webOrigins = {}) => {
   const originMap = new Map()
+  const componentMap = new Map()
 
   originRows.forEach((row) => {
     const setCode = normalizeText(row.세트코드)
     if (!setCode) return
+
+    // 하위순번별 구성품 (하위코드 / 하위모델명 / 적혀 있는 원산지)
+    if (!componentMap.has(setCode)) componentMap.set(setCode, [])
+    componentMap.get(setCode).push({
+      seq: normalizeText(row.하위순번),
+      code: normalizeText(row.하위코드),
+      model: normalizeText(row.하위모델명),
+      origin: normalizeText(row.원산지) || '-',
+    })
 
     const value = normalizeCountry(row.원산지)
     if (!originMap.has(setCode)) originMap.set(setCode, [])
@@ -248,6 +258,7 @@ const compareFiles = (productRows, originRows, webOrigins = {}) => {
         productOrigin: productOrigin || '없음',
         sourceOrigin: techOriginField || detailedOrigin || '없음',
         originValues: uniqueOriginValues,
+        components: componentMap.get(erpCode) || [],
         status,
         message,
       }
@@ -355,6 +366,7 @@ function App() {
   const isLoading = initializing || !!progress
   const [isCustomUpload, setIsCustomUpload] = useState(false)
   const [expandedGroups, setExpandedGroups] = useState({})
+  const [expandedModels, setExpandedModels] = useState({})
   const [selectedGroupIds, setSelectedGroupIds] = useState(new Set())
   const [hasUserSelection, setHasUserSelection] = useState(false)
   const productInputRef = useRef(null)
@@ -562,6 +574,10 @@ function App() {
     }))
   }
 
+  const toggleModels = (key) => {
+    setExpandedModels((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
   const toggleGroupSelection = (groupId) => {
     setHasUserSelection(true)
     setSelectedGroupIds((prev) => {
@@ -596,7 +612,7 @@ function App() {
 
     const activeFilterLabel =
       activeFilter === 'needs_attention'
-        ? TOP_LEVEL_FILTERS.find((filter) => filter.key === 'needs_attention')?.children.find((child) => child.key === activeDetailFilter)?.label?.replace(/^전체$/, '수정 필요') || '수정 필요'
+        ? TOP_LEVEL_FILTERS.find((filter) => filter.key === 'needs_attention')?.children.find((child) => child.key === activeDetailFilter)?.label?.replace(/^전체$/, '확인 필요') || '확인 필요'
         : TOP_LEVEL_FILTERS.find((filter) => filter.key === activeFilter)?.label || '결과'
 
     return `[ ${activeFilterLabel} ] 제품 엑셀 다운로드`
@@ -732,10 +748,10 @@ function App() {
               <p className="eyebrow">검증 결과</p>
               <div className="title-with-help">
                 <h2>이슈 목록</h2>
-                <span className="help-tip" tabIndex={0} aria-label="수정 필요 유형 안내">
+                <span className="help-tip" tabIndex={0} aria-label="확인 필요 유형 안내">
                   <span className="help-icon">?</span>
                   <div className="help-tooltip" role="tooltip">
-                    <strong>수정이 필요한 경우는 총 4가지입니다.</strong>
+                    <strong>확인이 필요한 경우는 총 4가지입니다.</strong>
                     <dl>
                       <dt>ERP 원산지 누락</dt>
                       <dd>ERP 파일에 원산지가 없어 ERP 등록이 필요합니다.</dd>
@@ -886,7 +902,7 @@ function App() {
                             ) : (
                               <span>{group.대표P코드 || '-'}</span>
                             )}
-                            {group.children.length > 1 && (
+                            {(group.children.length > 1 || group.children.some((c) => c.components.length > 0)) && (
                               <button type="button" className="toggle-btn" onClick={() => toggleGroup(group.id)}>
                                 {expandedGroups[group.id] ? '닫기' : `하위 옵션 보기 (${group.children.length})`}
                               </button>
@@ -907,23 +923,55 @@ function App() {
                       </tr>
 
                       {expandedGroups[group.id] &&
-                        group.children.map((item, index) => (
-                          <tr key={`${group.id}-${item.하위P코드 || 'sub'}-${index}`} className="child-row">
-                            <td className="checkbox-col">
-                              <span className="child-indent">↳</span>
-                            </td>
-                            <td>{item.하위P코드 || '-'}</td>
-                            <td>{item.상품명 || '-'}</td>
-                            <td>{item.expectedOrigin || '없음'}</td>
-                            <td>{item.productOrigin || '없음'}</td>
-                            <td>
-                              <span className={`status-badge ${STATUS_META[item.status]?.className || 'muted'}`}>
-                                {STATUS_META[item.status]?.label || '확인'}
-                              </span>
-                            </td>
-                            <td className="note-cell">{item.message}</td>
-                          </tr>
-                        ))}
+                        group.children.map((item, index) => {
+                          const modelKey = `${group.id}-${index}`
+                          return (
+                            <Fragment key={`${group.id}-${item.하위P코드 || 'sub'}-${index}`}>
+                              <tr className="child-row">
+                                <td className="checkbox-col">
+                                  <span className="child-indent">↳</span>
+                                </td>
+                                <td>
+                                  <div className="group-code-wrap">
+                                    <span>{item.하위P코드 || '-'}</span>
+                                    {item.ERP코드 && <span className="component-erp">({item.ERP코드})</span>}
+                                    {item.components.length > 0 && (
+                                      <button type="button" className="toggle-btn toggle-btn-small" onClick={() => toggleModels(modelKey)}>
+                                        {expandedModels[modelKey] ? '하위모델 닫기' : `하위모델 더보기 (${item.components.length})`}
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                                <td>{item.상품명 || '-'}</td>
+                                <td>{item.expectedOrigin || '없음'}</td>
+                                <td>{item.productOrigin || '없음'}</td>
+                                <td>
+                                  <span className={`status-badge ${STATUS_META[item.status]?.className || 'muted'}`}>
+                                    {STATUS_META[item.status]?.label || '확인'}
+                                  </span>
+                                </td>
+                                <td className="note-cell">{item.message}</td>
+                              </tr>
+
+                              {expandedModels[modelKey] &&
+                                item.components.map((component, compIndex) => (
+                                  <tr key={`${modelKey}-${component.code}-${compIndex}`} className="child-row component-row">
+                                    <td className="checkbox-col">
+                                      <span className="child-indent component-indent">-</span>
+                                    </td>
+                                    <td>
+                                      {component.code || '-'}
+                                    </td>
+                                    <td>{component.model || '-'}</td>
+                                    <td>{component.origin}</td>
+                                    <td />
+                                    <td />
+                                    <td />
+                                  </tr>
+                                ))}
+                            </Fragment>
+                          )
+                        })}
                     </Fragment>
                   ))
                 )}
