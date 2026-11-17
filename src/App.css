@@ -459,8 +459,9 @@ th:nth-child(2), td:nth-child(2) { width: 14%; }
 th:nth-child(3), td:nth-child(3) { width: 25%; }
 th:nth-child(4), td:nth-child(4) { width: 13%; }
 th:nth-child(5), td:nth-child(5) { width: 11%; }
-th:nth-child(6), td:nth-child(6) { width: 15%; }
-th:nth-child(7), td:nth-child(7) { width: 23%; }
+th:nth-child(6), td:nth-child(6) { width: 13%; }
+th:nth-child(7), td:nth-child(7) { width: 21%; }
+th:nth-child(8), td:nth-child(8) { width: 7%; }
 
 .group-row td {
   background: rgba(13, 89, 119, 0.025);
@@ -822,4 +823,47 @@ tr:hover td {
 .component-erp {
   color: #688796;
   font-size: 0.85em;
+}
+
+.fixed-col {
+  width: 80px;
+  text-align: center;
+}
+
+.fixed-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.fixed-select {
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 4px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+}
+
+.memo-input {
+  display: block;
+  width: 100%;
+  min-width: 180px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.memo-input:focus {
+  outline: none;
+  border-color: #6b7cff;
 }

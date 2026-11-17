@@ -28,6 +28,41 @@ const STATUS_META = {
   missing_erp_code: { label: 'ERP 누락', className: 'muted' },
 }
 
+const FIXED_STORAGE_KEY = 'erp-pcode-fixed-v1'
+
+const FIXED_FILTERS = [
+  { key: 'all', label: '전체' },
+  { key: 'unfixed', label: '미완료' },
+  { key: 'fixed', label: '완료' },
+]
+
+const readFixedIds = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FIXED_STORAGE_KEY) || '[]')
+    return new Set(Array.isArray(parsed) ? parsed : [])
+  } catch {
+    return new Set()
+  }
+}
+
+const MEMO_STORAGE_KEY = 'erp-pcode-memo-v1'
+
+const readMemos = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MEMO_STORAGE_KEY) || '{}')
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+const saveReview = (payload) =>
+  fetch('/api/review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).catch(() => {})
+
 const normalizeText = (value) => {
   if (value === null || value === undefined) return ''
   return String(value).replace(/\s+/g, ' ').trim()
@@ -359,6 +394,9 @@ function App() {
   const [activeFilter, setActiveFilter] = useState('all')
   const [activeDetailFilter, setActiveDetailFilter] = useState('attention_all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [fixedIds, setFixedIds] = useState(readFixedIds)
+  const [memos, setMemos] = useState(readMemos)
+  const [fixedFilter, setFixedFilter] = useState('all')
   const [page, setPage] = useState('check')
   const [progress, setProgress] = useState(null)
   const [originSavedAt, setOriginSavedAt] = useState(null)
@@ -369,6 +407,8 @@ function App() {
   const [expandedModels, setExpandedModels] = useState({})
   const [selectedGroupIds, setSelectedGroupIds] = useState(new Set())
   const [hasUserSelection, setHasUserSelection] = useState(false)
+  const pendingMemoRef = useRef({})
+  const memoTimersRef = useRef({})
   const productInputRef = useRef(null)
   const originInputRef = useRef(null)
 
@@ -520,6 +560,72 @@ function App() {
     [groupedResults],
   )
 
+  const persistLocal = (fixed, memoMap) => {
+    try {
+      localStorage.setItem(FIXED_STORAGE_KEY, JSON.stringify([...fixed]))
+      localStorage.setItem(MEMO_STORAGE_KEY, JSON.stringify(memoMap))
+    } catch {
+      // 저장 실패 시 현재 세션에서만 유지
+    }
+  }
+
+  // 서버에 저장된 수정완료/메모를 불러와 반영 (다른 브라우저·기기에서 한 작업 포함)
+  const loadReview = async () => {
+    try {
+      const res = await fetch('/api/review', { cache: 'no-store' })
+      if (!res.ok) return
+      const data = await res.json()
+      if (!data || typeof data !== 'object') return
+      const fixed = new Set(Object.keys(data.fixed || {}))
+      const memoMap = data.memos || {}
+      // 입력 중인 메모는 덮어쓰지 않음
+      Object.keys(pendingMemoRef.current).forEach((id) => {
+        memoMap[id] = pendingMemoRef.current[id]
+      })
+      setFixedIds(fixed)
+      setMemos(memoMap)
+      persistLocal(fixed, memoMap)
+    } catch {
+      // 서버에 연결되지 않으면 브라우저 저장본 사용
+    }
+  }
+
+  useEffect(() => {
+    // 비동기 조회 후에만 상태를 갱신함
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadReview()
+    const onFocus = () => loadReview()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const toggleFixed = (groupId) => {
+    const nextValue = !fixedIds.has(groupId)
+    const next = new Set(fixedIds)
+    if (nextValue) next.add(groupId)
+    else next.delete(groupId)
+    setFixedIds(next)
+    persistLocal(next, memos)
+    saveReview({ id: groupId, fixed: nextValue })
+  }
+
+  const changeMemo = (groupId, value) => {
+    const next = { ...memos }
+    if (value) next[groupId] = value
+    else delete next[groupId]
+    setMemos(next)
+    persistLocal(fixedIds, next)
+
+    // 타이핑이 멈추면 서버에 저장
+    pendingMemoRef.current[groupId] = value
+    clearTimeout(memoTimersRef.current[groupId])
+    memoTimersRef.current[groupId] = setTimeout(async () => {
+      await saveReview({ id: groupId, memo: value })
+      if (pendingMemoRef.current[groupId] === value) delete pendingMemoRef.current[groupId]
+    }, 600)
+  }
+
   const effectiveFilter = activeFilter === 'needs_attention' ? activeDetailFilter : activeFilter
 
   const filteredGroups = useMemo(() => {
@@ -549,8 +655,11 @@ function App() {
       }
     }
 
+    if (fixedFilter === 'fixed') nextGroups = nextGroups.filter((group) => fixedIds.has(group.id))
+    else if (fixedFilter === 'unfixed') nextGroups = nextGroups.filter((group) => !fixedIds.has(group.id))
+
     return nextGroups
-  }, [groupedResults, effectiveFilter, searchTerm])
+  }, [groupedResults, effectiveFilter, searchTerm, fixedFilter, fixedIds])
 
   const visibleGroupIds = useMemo(() => filteredGroups.map((group) => group.id), [filteredGroups])
 
@@ -633,7 +742,9 @@ function App() {
         ERP원산지: group.expectedOrigins.join(', ') || '없음',
         기술서원산지: group.productOrigins.join(', ') || '없음',
         상태: STATUS_META[group.groupStatus]?.label || '확인',
+        수정완료: fixedIds.has(group.id) ? 'Y' : '',
         메모: group.groupMessage,
+        직접메모: memos[group.id] || '',
       }
 
       const childRows = group.children.map((item) => ({
@@ -643,7 +754,9 @@ function App() {
         ERP원산지: item.expectedOrigin || '없음',
         기술서원산지: item.productOrigin || '없음',
         상태: STATUS_META[item.status]?.label || '확인',
+        수정완료: '',
         메모: item.message,
+        직접메모: '',
       }))
 
       return [groupRow, ...childRows]
@@ -856,14 +969,32 @@ function App() {
                   <th>상품명</th>
                   <th>ERP 원산지</th>
                   <th>기술서 원산지</th>
-                  <th>상태</th>
+                  <th>상태</th>  
                   <th>메모</th>
+                  <th className="fixed-col">
+                    <div className="fixed-head">
+                      <span>수정완료</span>
+                      <select
+                        className="fixed-select"
+                        value={fixedFilter}
+                        onChange={(event) => setFixedFilter(event.target.value)}
+                        aria-label="수정완료 필터"
+                      >
+                        {FIXED_FILTERS.map((filter) => (
+                          <option key={filter.key} value={filter.key}>
+                            {filter.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </th>
+                
                 </tr>
               </thead>
               <tbody>
                 {isLoading ? (
                   <tr>
-                    <td colSpan="7" className="empty-state">
+                    <td colSpan="8" className="empty-state">
                       <div className="loading-state">
 <span className="spinner" aria-hidden="true" />
                       <strong>분석 중입니다…</strong>
@@ -875,7 +1006,7 @@ function App() {
                   </tr>
                 ) : filteredGroups.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="empty-state">
+                    <td colSpan="8" className="empty-state">
                       조건에 맞는 결과가 없습니다.
                     </td>
                   </tr>
@@ -917,8 +1048,28 @@ function App() {
                             {STATUS_META[group.groupStatus]?.label || '확인'}
                           </span>
                         </td>
+                       
                         <td className="note-cell">
                           <div className="group-message">{group.groupMessage}</div>
+                          <textarea
+                            className="memo-input"
+                            rows={2}
+                            value={memos[group.id] || ''}
+                            onChange={(event) => changeMemo(group.id, event.target.value)}
+                            placeholder="메모 입력"
+                            aria-label="메모"
+                          />
+                        </td>
+                         <td className="fixed-col">
+                          <label className="row-check">
+                            <input
+                              type="checkbox"
+                              checked={fixedIds.has(group.id)}
+                              onChange={() => toggleFixed(group.id)}
+                              aria-label="수정완료"
+                            />
+                            <span className="checkmark" />
+                          </label>
                         </td>
                       </tr>
 
@@ -950,6 +1101,7 @@ function App() {
                                     {STATUS_META[item.status]?.label || '확인'}
                                   </span>
                                 </td>
+                                <td />
                                 <td className="note-cell">{item.message}</td>
                               </tr>
 
@@ -964,6 +1116,7 @@ function App() {
                                     </td>
                                     <td>{component.model || '-'}</td>
                                     <td>{component.origin}</td>
+                                    <td />
                                     <td />
                                     <td />
                                     <td />
