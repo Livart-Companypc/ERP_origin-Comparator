@@ -28,7 +28,7 @@ console.log(`조회 대상 ${list.length}건`)
 const data = {}
 const BATCH = 100
 for (let i = 0; i < list.length; i += BATCH) {
-  Object.assign(data, await fetchOrigins(list.slice(i, i + BATCH), 15))
+  Object.assign(data, await fetchOrigins(list.slice(i, i + BATCH), 6))
   console.log(`${Math.min(i + BATCH, list.length)}/${list.length}`)
 }
 
