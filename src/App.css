@@ -461,15 +461,19 @@ th:nth-child(4), td:nth-child(4) { width: 13%; }
 th:nth-child(5), td:nth-child(5) { width: 11%; }
 th:nth-child(6), td:nth-child(6) { width: 13%; }
 th:nth-child(7), td:nth-child(7) { width: 21%; }
-th:nth-child(8), td:nth-child(8) { width: 7%; }
+th:nth-child(8), td:nth-child(8) { width: 7%; vertical-align: middle; }
 
 .group-row td {
   background: rgba(13, 89, 119, 0.025);
   font-weight: 700;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .child-row td {
   background: rgba(13, 89, 119, 0.01);
+  text-align: center;
+  vertical-align: middle;
 }
 
 .child-indent {
@@ -495,12 +499,13 @@ th:nth-child(8), td:nth-child(8) { width: 7%; }
   border:none;
   padding:0;
   text-decoration: underline;
-  text-align: left;
+  text-align: center;
 }
 
 .group-message {
   color: #456070;
   line-height: 1.5;
+  font-size: 12px;
 }
 
 th,
@@ -519,6 +524,8 @@ th {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   background: rgba(13, 89, 119, 0.03);
+  text-align: center;
+  vertical-align: middle;
 }
 
 .checkbox-col {
@@ -553,11 +560,19 @@ th {
 }
 
 .row-check input:checked + .checkmark {
-  background: linear-gradient(135deg, #0d5977, #1d8aa6);
+  background: #8d8d8d;
   border-color: transparent;
   box-shadow: 0 0 0 3px rgba(13, 89, 119, 0.08);
 }
+.row-check-design ,.row-check-design .checkmark {
+  width: 27px;
+  height: 25px;
+}
 
+.row-check-design input:checked + .checkmark {
+  background: linear-gradient(135deg, #f88181, #c7437e);
+  box-shadow: 0 0 0 3px rgb(254 174 210 / 34%);
+}
 .row-check input:checked + .checkmark::after {
   content: '';
   position: absolute;
@@ -569,7 +584,11 @@ th {
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
-
+.row-check-design input:checked + .checkmark::after{
+  left: 9px;
+  top: 5px;
+  width: 7px;
+}
 .group-code-wrap {
   display: flex;
   flex-direction: column;

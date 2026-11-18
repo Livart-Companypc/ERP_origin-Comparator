@@ -1061,7 +1061,7 @@ function App() {
                           />
                         </td>
                          <td className="fixed-col">
-                          <label className="row-check">
+                          <label className="row-check row-check-design">
                             <input
                               type="checkbox"
                               checked={fixedIds.has(group.id)}
@@ -1088,7 +1088,7 @@ function App() {
                                     {item.ERP코드 && <span className="component-erp">({item.ERP코드})</span>}
                                     {item.components.length > 0 && (
                                       <button type="button" className="toggle-btn toggle-btn-small" onClick={() => toggleModels(modelKey)}>
-                                        {expandedModels[modelKey] ? '하위모델 닫기' : `하위모델 더보기 (${item.components.length})`}
+                                        {expandedModels[modelKey] ? '하위부품 닫기' : `하위부품 원산지 보기 (${item.components.length})`}
                                       </button>
                                     )}
                                   </div>
