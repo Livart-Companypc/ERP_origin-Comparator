@@ -416,6 +416,8 @@ function App() {
   const [hasUserSelection, setHasUserSelection] = useState(false)
   const pendingMemoRef = useRef({})
   const memoTimersRef = useRef({})
+  // 2026-11-23 16:00(KST)까지 분석 버튼 비활성화
+  const analysisLocked = Date.now() < new Date('2026-11-23T16:00:00+09:00').getTime()
   const productInputRef = useRef(null)
   const originInputRef = useRef(null)
 
@@ -805,14 +807,17 @@ function App() {
               <p className="eyebrow">제품 원산지 검증</p>
               <h1>[ERP - 상품기술서] 원산지 비교 (※ 11.23일까진, 우측 '분석돌리기' 버튼 누르지말기! 👉)</h1>
             </div>
-            <button
-              type="button"
-              className="primary-btn reupload-btn"
-              onClick={runAnalysis}
-              disabled={!productFile || !originFile || !!progress}
-            >
-              {progress ? `상품 페이지 조회 중 ${progress.done}/${progress.total}` : isCustomUpload ? '분석하기' : '다시 분석 돌리기'}
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+              {analysisLocked && <span style={{ fontSize: 12, color: '#d92d20' }}>(11.23까진 버튼 비활성)</span>}
+              <button
+                type="button"
+                className="primary-btn reupload-btn"
+                onClick={runAnalysis}
+                disabled={analysisLocked || !productFile || !originFile || !!progress}
+              >
+                {progress ? `상품 페이지 조회 중 ${progress.done}/${progress.total}` : isCustomUpload ? '분석하기' : '다시 분석 돌리기'}
+              </button>
+            </div>
           </div> 
           <ul className="notice-list">
             <li>원하는 파일로 재업로드하는 경우, 각 컬럼 구성과 명칭은 기존 파일과 동일해야 합니다</li>
