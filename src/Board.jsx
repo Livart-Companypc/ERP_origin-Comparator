@@ -91,7 +91,7 @@ function Board() {
     <section className="panel board">
       <div className="board-head">
         <h2>히스토리</h2>
-        <p>익명으로 남기는 공간입니다. 단종 제품, 처리 이력 등 참고할 내용을 자유롭게 적어 주세요.</p>
+        <p>익명으로 남기는 공간입니다! 단종 제품, 처리 이력, 품질팀 전달사항 등 참고할 내용을 자유롭게 적어 주세요.</p>
       </div>
 
       <form className="board-form" onSubmit={submit}>
