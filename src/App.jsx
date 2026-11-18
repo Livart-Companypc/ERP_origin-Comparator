@@ -366,7 +366,16 @@ const buildGroupedResults = (results) => {
 
     // 대표P코드 기준: (하위 옵션 전체 ERP 원산지 모음) == (기술서 원산지)면, 일부 하위 옵션에 ERP 원산지가 비어 있어도 일치로 본다
     const sameSet = expectedOrigins.length > 0 && expectedOrigins.length === productOrigins.length && expectedOrigins.every((v) => productOrigins.includes(v))
-    const groupStatus = sameSet ? 'matched' : getGroupStatus(children)
+    // 대표 P코드 기준으로 ERP 원산지가 하나라도 있으면 ERP 누락이 아님 → 하위의 ERP 누락은 기술서 대비 상태로 대체
+    const hasGroupErpOrigin = expectedOrigins.length > 0
+    const effectiveChildren = hasGroupErpOrigin
+      ? children.map((c) =>
+          c.status === 'missing_origin' || c.status === 'missing_erp_code'
+            ? { ...c, status: productOrigins.length === 0 ? 'empty_product' : 'mismatch' }
+            : c,
+        )
+      : children
+    const groupStatus = sameSet ? 'matched' : getGroupStatus(effectiveChildren)
     const groupMessage =
       groupStatus === 'matched'
         ? sameSet && children.some((c) => c.status !== 'matched') ? '대표 기준 ERP 원산지와 기술서 원산지 일치 (일부 하위 옵션은 개별 확인)' : '모든 하위 옵션이 일치'
