@@ -793,7 +793,7 @@ function App() {
           <div className="panel-heading">
             <div>
               <p className="eyebrow">제품 원산지 검증</p>
-              <h1>[ERP - 상품기술서] 원산지 비교</h1>
+              <h1>[ERP - 상품기술서] 원산지 비교 (※ 11.23일까진, 우측 '분석돌리기' 버튼 누르지말기! 👉)</h1>
             </div>
             <button
               type="button"
