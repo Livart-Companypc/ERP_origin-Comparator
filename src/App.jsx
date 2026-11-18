@@ -30,6 +30,12 @@ const STATUS_META = {
 
 const FIXED_STORAGE_KEY = 'erp-pcode-fixed-v1'
 
+const MEMO_FILTERS = [
+  { key: 'all', label: '전체' },
+  { key: 'has', label: '참고할 메모 있음' },
+  { key: 'none', label: '메모 없음' },
+]
+
 const FIXED_FILTERS = [
   { key: 'all', label: '전체' },
   { key: 'unfixed', label: '미완료' },
@@ -397,6 +403,7 @@ function App() {
   const [fixedIds, setFixedIds] = useState(readFixedIds)
   const [memos, setMemos] = useState(readMemos)
   const [fixedFilter, setFixedFilter] = useState('all')
+  const [memoFilter, setMemoFilter] = useState('all')
   const [page, setPage] = useState('check')
   const [progress, setProgress] = useState(null)
   const [originSavedAt, setOriginSavedAt] = useState(null)
@@ -658,8 +665,11 @@ function App() {
     if (fixedFilter === 'fixed') nextGroups = nextGroups.filter((group) => fixedIds.has(group.id))
     else if (fixedFilter === 'unfixed') nextGroups = nextGroups.filter((group) => !fixedIds.has(group.id))
 
+    if (memoFilter === 'has') nextGroups = nextGroups.filter((group) => (memos[group.id] || '').trim())
+    else if (memoFilter === 'none') nextGroups = nextGroups.filter((group) => !(memos[group.id] || '').trim())
+
     return nextGroups
-  }, [groupedResults, effectiveFilter, searchTerm, fixedFilter, fixedIds])
+  }, [groupedResults, effectiveFilter, searchTerm, fixedFilter, fixedIds, memoFilter, memos])
 
   const visibleGroupIds = useMemo(() => filteredGroups.map((group) => group.id), [filteredGroups])
 
@@ -970,7 +980,23 @@ function App() {
                   <th>ERP 원산지</th>
                   <th>기술서 원산지</th>
                   <th>상태</th>  
-                  <th>메모</th>
+                  <th>
+                    <div className="fixed-head">
+                      <span>메모</span>
+                      <select
+                        className="fixed-select"
+                        value={memoFilter}
+                        onChange={(event) => setMemoFilter(event.target.value)}
+                        aria-label="메모 필터"
+                      >
+                        {MEMO_FILTERS.map((filter) => (
+                          <option key={filter.key} value={filter.key}>
+                            {filter.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </th>
                   <th className="fixed-col">
                     <div className="fixed-head">
                       <span>수정완료</span>
