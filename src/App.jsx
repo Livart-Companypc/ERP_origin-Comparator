@@ -814,7 +814,7 @@ function App() {
           <div className="panel-heading">
             <div>
               <p className="eyebrow">제품 원산지 검증 (플랫폼기획개발팀 UIUX파트 제작)</p>
-              <h1>[ERP - 상품기술서] 원산지 비교 (※ 12.02일까진, 우측 '분석돌리기' 버튼 누르지말기! 👉)</h1>
+              <h1>[ERP - 상품기술서] 원산지 비교 <br/><span style={{ fontSize: '1.3rem' }}> (※ 12.02일까진, 우측 '분석돌리기' 버튼 누르지말기! 👉)</span></h1>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
               {analysisLocked && <span style={{ fontSize: 12, color: '#d92d20' }}>(12.02까진 버튼 비활성)</span>}
