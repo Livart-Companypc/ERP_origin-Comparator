@@ -425,8 +425,8 @@ function App() {
   const [hasUserSelection, setHasUserSelection] = useState(false)
   const pendingMemoRef = useRef({})
   const memoTimersRef = useRef({})
-  // 2026-11-23 16:00(KST)까지 분석 버튼 비활성화
-  const analysisLocked = Date.now() < new Date('2026-11-23T16:00:00+09:00').getTime()
+  // 2026-12-02 23:59(KST)까지 분석 버튼 비활성화
+  const analysisLocked = Date.now() < new Date('2026-12-03T00:00:00+09:00').getTime()
   const productInputRef = useRef(null)
   const originInputRef = useRef(null)
 
@@ -813,11 +813,11 @@ function App() {
         <section className="upload-panel panel">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">제품 원산지 검증</p>
-              <h1>[ERP - 상품기술서] 원산지 비교 (※ 11.23일까진, 우측 '분석돌리기' 버튼 누르지말기! 👉)</h1>
+              <p className="eyebrow">제품 원산지 검증 (플랫폼기획개발팀 UIUX파트 제작)</p>
+              <h1>[ERP - 상품기술서] 원산지 비교 (※ 12.02일까진, 우측 '분석돌리기' 버튼 누르지말기! 👉)</h1>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-              {analysisLocked && <span style={{ fontSize: 12, color: '#d92d20' }}>(11.23까진 버튼 비활성)</span>}
+              {analysisLocked && <span style={{ fontSize: 12, color: '#d92d20' }}>(12.02까진 버튼 비활성)</span>}
               <button
                 type="button"
                 className="primary-btn reupload-btn"
